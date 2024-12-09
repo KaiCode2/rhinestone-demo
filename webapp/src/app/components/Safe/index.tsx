@@ -19,10 +19,11 @@ import { ToKernelSmartAccountReturnType, toSafeSmartAccount, ToSafeSmartAccountR
 import { createWebAuthnCredential, entryPoint07Address, P256Credential, toWebAuthnAccount } from 'viem/account-abstraction';
 import { createSmartAccountClient, SmartAccountClient } from 'permissionless';
 import { Erc7579Actions, erc7579Actions } from "permissionless/actions/erc7579";
-import { Account, Chain, http, Transport } from 'viem';
+import { Account, Chain, http, Transport, WalletCapabilities } from 'viem';
 import { pimlicoClient, pimlicoSepoliaUrl } from '@/wagmi';
 import { sepolia } from 'viem/chains';
 import { convertCredential } from '@/utils/webauthn';
+import { useCapabilities } from 'wagmi/experimental'
 
 export default function SafeComponent() {
     const [smartAccountClient, setSmartAccountClient] =
@@ -37,6 +38,7 @@ export default function SafeComponent() {
         JSON.parse(localStorage.getItem("credential") || "null")
     )
     const account = useAccount();
+    const capabilities = useCapabilities();
     const publicClient = usePublicClient();
     const walletClient = useWalletClient();
     const [isDeployed, setIsDeployed] = useState<boolean | null>(null);
@@ -61,6 +63,7 @@ export default function SafeComponent() {
         console.log('Creating Safe Account');
         const owner = account.address;
         const walletAccount = walletClient.data;
+        let  paymasterServiceSupported: boolean = false;
         if (!owner) {
             console.error('No owner');
             return;
@@ -68,6 +71,10 @@ export default function SafeComponent() {
             console.error('No wallet account');
             return;
         }
+        if (capabilities.data) {
+            paymasterServiceSupported = capabilities.data[(account.chainId ?? sepolia.id) as number]?.paymasterService?.supported ?? false;
+        }
+        
 
         // const owners = [walletAccount];
 
@@ -104,7 +111,7 @@ export default function SafeComponent() {
         console.log('Safe Account:', safeAccount);
         const smartAccountClient = createSmartAccountClient({
             account: safeAccount,
-            paymaster: pimlicoClient,
+            paymaster: paymasterServiceSupported ? pimlicoClient : undefined,
             chain: sepolia,
             userOperation: {
                 estimateFeesPerGas: async () =>
@@ -132,20 +139,29 @@ export default function SafeComponent() {
         console.log('module:', module);
         console.log('smartAccountClient:', smartAccountClient);
 
-        const isInstalled = await smartAccountClient.isModuleInstalled(module);
-        console.log('Is Installed:', isInstalled);
+        const isInstalled = false  //await smartAccountClient.isModuleInstalled(module);
+        // console.log('Is Installed:', isInstalled);
 
         if (isInstalled) {
             console.log('Module already installed');
             return;
         }
-        const installOp = await smartAccountClient.installModule(module);
+        const installOp = await installModule({
+            client: smartAccountClient.client!,
+            account: {
+                deployedOnChains: [sepolia.id],
+                address: smartAccountClient.account.address,
+                type: 'safe'
+            },
+            module,
+        });
+        // const installOp = await smartAccountClient.installModules([module]);
         console.log('Install Op:', installOp);
 
-        const receipt = await smartAccountClient.waitForUserOperationReceipt({
-            hash: installOp,
-        })
-        console.log('Install Receipt:', receipt);
+        // const receipt = await smartAccountClient.waitForUserOperationReceipt({
+        //     hash: installOp,
+        // })
+        // console.log('Install Receipt:', receipt);
 
 
     }, [smartAccountClient, credential]);

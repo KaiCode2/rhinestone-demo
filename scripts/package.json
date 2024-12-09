@@ -1,0 +1,21 @@
+{
+  "name": "scripts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "automations": "tsc src/automations.ts"
+  },
+  "dependencies": {
+    "@rhinestone/automations-sdk": "^0.0.2",
+    "@rhinestone/module-sdk": "^0.1.31",
+    "dotenv": "^16.4.7",
+    "permissionless": "^0.2.22",
+    "viem": "^2.21.54"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.1",
+    "typescript": "5.7.2"
+  }
+}

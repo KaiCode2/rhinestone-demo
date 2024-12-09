@@ -2,6 +2,7 @@
   "name": "rhinestone-demo",
   "private": true,
   "workspaces": [
-    "webapp"
+    "webapp",
+    "scripts"
   ]
 }
