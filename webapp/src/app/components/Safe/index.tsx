@@ -9,19 +9,20 @@ import {
     getOwnableValidator,
     getWebAuthnValidator,
 } from '@rhinestone/module-sdk'
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { usePublicClient, useAccount, useWalletClient } from 'wagmi'
 import {
     useSendTransaction,
     useWaitForTransactionReceipt
 } from "@permissionless/wagmi"
-import { ToKernelSmartAccountReturnType, toSafeSmartAccount } from 'permissionless/accounts';
+import { ToKernelSmartAccountReturnType, toSafeSmartAccount, ToSafeSmartAccountReturnType } from 'permissionless/accounts';
 import { createWebAuthnCredential, entryPoint07Address, P256Credential, toWebAuthnAccount } from 'viem/account-abstraction';
 import { createSmartAccountClient, SmartAccountClient } from 'permissionless';
-import { erc7579Actions } from "permissionless/actions/erc7579";
+import { Erc7579Actions, erc7579Actions } from "permissionless/actions/erc7579";
 import { Account, Chain, http, Transport } from 'viem';
 import { pimlicoClient, pimlicoSepoliaUrl } from '@/wagmi';
 import { sepolia } from 'viem/chains';
+import { convertCredential } from '@/utils/webauthn';
 
 export default function SafeComponent() {
     const [smartAccountClient, setSmartAccountClient] =
@@ -29,8 +30,8 @@ export default function SafeComponent() {
             SmartAccountClient<
                 Transport,
                 Chain,
-                ToKernelSmartAccountReturnType<"0.7">
-            >
+                ToSafeSmartAccountReturnType<"0.7">
+            > & Erc7579Actions<ToKernelSmartAccountReturnType<"0.7">>
         >()
     const [credential, setCredential] = useState<P256Credential>(() =>
         JSON.parse(localStorage.getItem("credential") || "null")
@@ -38,6 +39,7 @@ export default function SafeComponent() {
     const account = useAccount();
     const publicClient = usePublicClient();
     const walletClient = useWalletClient();
+    const [isDeployed, setIsDeployed] = useState<boolean | null>(null);
     const {
         sendTransaction,
         data: transactionReference,
@@ -48,6 +50,7 @@ export default function SafeComponent() {
         const credential = await createWebAuthnCredential({
             name: "Wallet"
         })
+        console.log('Credential:', credential);
 
         // NOTE: JSON.stringify is illegal in this context
         // localStorage.setItem("credential", JSON.stringify(credential))
@@ -110,6 +113,7 @@ export default function SafeComponent() {
             },
             bundlerTransport: http(pimlicoSepoliaUrl)
         }).extend(erc7579Actions());
+        
         setSmartAccountClient(smartAccountClient as any);
 
     }, [account, publicClient, sendTransaction, walletClient.data, credential]);
@@ -123,16 +127,59 @@ export default function SafeComponent() {
             return;
         }
 
-        
-        // const module = getWebAuthnValidator({
-        //     webAuthnCredential: {
-        //         pubKeyX: credential.publicKey.x,
-        //         pubKeyY: credential.publicKey.y,
-        //         authenticatorId: "Wallet"
-        //     }
-        // });
+        console.log('Installing WebAuthn Module');
+        const module = getWebAuthnValidator(convertCredential(credential));
+        console.log('module:', module);
+        console.log('smartAccountClient:', smartAccountClient);
+
+        const isInstalled = await smartAccountClient.isModuleInstalled(module);
+        console.log('Is Installed:', isInstalled);
+
+        if (isInstalled) {
+            console.log('Module already installed');
+            return;
+        }
+        const installOp = await smartAccountClient.installModule(module);
+        console.log('Install Op:', installOp);
+
+        const receipt = await smartAccountClient.waitForUserOperationReceipt({
+            hash: installOp,
+        })
+        console.log('Install Receipt:', receipt);
+
 
     }, [smartAccountClient, credential]);
+
+    useEffect(() => {
+        if (!smartAccountClient || isDeployed !== null) {
+            return;
+        }
+
+        smartAccountClient.account.isDeployed().then(setIsDeployed);
+    }, [smartAccountClient]);
+
+    const deploySafe = useCallback(async () => {
+        if (!smartAccountClient) {
+            console.error('No smart account client');
+            return;
+        }
+        const isDeployed = await smartAccountClient.account.isDeployed();
+        if (isDeployed) {
+            console.log('Safe already deployed');
+            return;
+        }
+
+        console.log('Deploying Safe');
+        
+        const factoryArgs = await smartAccountClient.account.getFactoryArgs();
+        console.log('Factory Args:', factoryArgs);
+        const deployReceipt = sendTransaction({
+            to: factoryArgs.factory,
+            data: factoryArgs.factoryData,
+        });
+        console.log('Deploy Receipt:', deployReceipt);
+    }, [smartAccountClient]);
+
 
     return (
         <div>
@@ -140,6 +187,7 @@ export default function SafeComponent() {
             {smartAccountClient ?
                 <>
                     <h2>Account: {smartAccountClient.account.address}</h2>
+                    {isDeployed ? <p>Safe deployed</p> : <button onClick={deploySafe}>Deploy Safe</button>}
                     {credential ?
                         <div>
                             <h2>WebAuthn Credential</h2>

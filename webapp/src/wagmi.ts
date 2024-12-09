@@ -18,7 +18,7 @@ export function getConfig() {
     ssr: true,
     transports: {
       [mainnet.id]: http(),
-      [sepolia.id]: http(),
+      [sepolia.id]: http("https://sepolia.drpc.org"),
     },
   })
 }
