@@ -5,11 +5,14 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "automations": "tsc src/automations.ts"
+    "cli": "npx tsx src/cli.ts",
+    "automations": "npx tsx src/automations.ts"
   },
   "dependencies": {
     "@rhinestone/automations-sdk": "^0.0.2",
     "@rhinestone/module-sdk": "^0.1.31",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
     "dotenv": "^16.4.7",
     "permissionless": "^0.2.22",
     "viem": "^2.21.54"

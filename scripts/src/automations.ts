@@ -1,108 +1,28 @@
 import {
-  RHINESTONE_ATTESTER_ADDRESS,
-  MOCK_ATTESTER_ADDRESS,
   getScheduledTransferData,
   getScheduledTransfersExecutor,
   getExecuteScheduledTransferAction,
   OWNABLE_VALIDATOR_ADDRESS,
-  getOwnableValidator,
   encode1271Signature,
   getAccount,
   encode1271Hash,
 } from "@rhinestone/module-sdk";
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   Address,
-  Chain,
-  createPublicClient,
   encodeFunctionData,
-  http,
   parseAbi,
 } from "viem";
 import { sepolia } from "viem/chains";
-import { createSmartAccountClient } from "permissionless";
-import { erc7579Actions } from "permissionless/actions/erc7579";
-import { createPimlicoClient } from "permissionless/clients/pimlico";
-import {
-  createPaymasterClient,
-  entryPoint07Address,
-} from "viem/account-abstraction";
-import { toSafeSmartAccount } from "permissionless/accounts";
-import { createAutomationClient } from "@rhinestone/automations-sdk";
 
 import { config } from "dotenv";
 
 config();
 
-const pimlicoSepoliaUrl = `https://api.pimlico.io/v2/${sepolia.id}/rpc?apikey=${process.env.PIMLICO_API_KEY}`;
-const rpcURL = (process.env.RPC_URL as string) ?? "https://sepolia.drpc.org";
-const privateKey = process.env.PRIVATE_KEY as string;
-const automationsApiKey = process.env.AUTOMATIONS_API_KEY as string;
+import { getSafeAccountClient, ownerAccount, getAutomationClient, pimlicoClient } from "./clients";
 
-if (!privateKey) {
-  throw new Error("PRIVATE_KEY is required");
-} else if (process.env.PIMLICO_API_KEY === undefined) {
-  throw new Error("PIMLICO_API_KEY is required");
-}
-
-const publicClient = createPublicClient({
-  transport: http(rpcURL),
-  chain: sepolia,
-});
-
-const pimlicoClient = createPimlicoClient({
-  transport: http(pimlicoSepoliaUrl),
-  entryPoint: {
-    address: entryPoint07Address,
-    version: "0.7",
-  },
-});
-
-const paymasterClient = createPaymasterClient({
-  transport: http(pimlicoSepoliaUrl),
-});
 
 async function main() {
-  const owner = privateKeyToAccount(privateKey as `0x${string}`);
-  const ownableValidator = getOwnableValidator({
-    owners: ["0x2DC2fb2f4F11DeE1d6a2054ffCBf102D09b62bE2", owner.address],
-    threshold: 1,
-  });
-
-  const safeAccount = await toSafeSmartAccount({
-    client: publicClient,
-    owners: [owner],
-    version: "1.4.1",
-    entryPoint: {
-      address: entryPoint07Address,
-      version: "0.7",
-    },
-    safe4337ModuleAddress: "0x7579EE8307284F293B1927136486880611F20002",
-    erc7579LaunchpadAddress: "0x7579011aB74c46090561ea277Ba79D510c6C00ff",
-    attesters: [
-      RHINESTONE_ATTESTER_ADDRESS, // Rhinestone Attester
-      MOCK_ATTESTER_ADDRESS, // Mock Attester - do not use in production
-    ],
-    attestersThreshold: 1,
-    validators: [
-      {
-        address: ownableValidator.address,
-        context: ownableValidator.initData,
-      },
-    ],
-  });
-
-  const smartAccountClient = createSmartAccountClient({
-    account: safeAccount,
-    chain: sepolia,
-    bundlerTransport: http(pimlicoSepoliaUrl),
-    paymaster: paymasterClient,
-    userOperation: {
-      estimateFeesPerGas: async () => {
-        return (await pimlicoClient.getUserOperationGasPrice()).fast;
-      },
-    },
-  }).extend(erc7579Actions());
+  const smartAccountClient = await getSafeAccountClient();
 
   const executeInterval = 60; // in seconds
   const numberOfExecutions = 2;
@@ -151,18 +71,11 @@ async function main() {
     data: encodeFunctionData({
       abi: parseAbi(["function mint(address to, uint256 amount) external"]),
       functionName: "mint",
-      args: [safeAccount.address, BigInt(10)],
+      args: [smartAccountClient.account.address, BigInt(10)],
     }),
   });
 
-  const automationClient = createAutomationClient({
-    account: safeAccount.address,
-    accountType: "SAFE",
-    apiKey: automationsApiKey,
-    accountInitCode: "0x",
-    network: 11155111,
-    validator: OWNABLE_VALIDATOR_ADDRESS,
-  });
+  const automationClient = getAutomationClient(smartAccountClient.account.address);
 
   const activeAutomations = await automationClient.getActiveAutomations();
   console.log("Active Automations:", activeAutomations);
@@ -181,7 +94,7 @@ async function main() {
   ];
 
   const triggerData = {
-    cronExpression: "* * * * *",
+    cronExpression: "*/60 * * * *",
     startDate: startDate,
   };
 
@@ -197,7 +110,7 @@ async function main() {
   });
 
   const account = getAccount({
-    address: safeAccount.address,
+    address: smartAccountClient.account.address,
     type: "safe",
   });
 
@@ -208,7 +121,7 @@ async function main() {
     hash: automation.hash,
   });
 
-  const signature = await owner.signMessage({
+  const signature = await ownerAccount.signMessage({
     message: { raw: formattedHash },
   });
 
@@ -223,7 +136,7 @@ async function main() {
     signature: formattedSignature,
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 10000));
+  await new Promise((resolve) => setTimeout(resolve, 10_000));
 
   const automationLogs = await automationClient.getAutomationLogs(
     automation.id
