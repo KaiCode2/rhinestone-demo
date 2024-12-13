@@ -2,6 +2,7 @@ import {
   getSafeAccountClient,
   getAutomationClient,
   ownerAccount,
+  publicClient,
 } from "./clients";
 import chalk from "chalk";
 import { Command, Option, Argument } from "commander";
@@ -12,6 +13,7 @@ import {
   encode1271Hash,
   encode1271Signature,
   getAccount,
+  getCreateScheduledTransferAction,
   OWNABLE_VALIDATOR_ADDRESS,
 } from "@rhinestone/module-sdk";
 import { sepolia } from "viem/chains";
@@ -184,7 +186,7 @@ createAutomation
   .addOption(
     new Option(
       "-s, --start <start>",
-      "Start date or unix timestamp for the automation"
+      "Start date or unix timestamp for the automation. Also support relative time like +1000"
     )
   )
   .addOption(
@@ -205,7 +207,9 @@ createAutomation
       typeof runs === "number" ? runs : parseInt(runs);
     let startDate: number;
     if (start) {
-      if (isNaN(Number(start))) {
+      if (start.startsWith("+")) {
+        startDate = Date.now() + parseInt(start.slice(1));
+      } else if (isNaN(Number(start))) {
         startDate = new Date(start).getTime();
       } else {
         startDate = Number(start);
@@ -261,10 +265,64 @@ createAutomation
         `Automation ${chalk.yellow(automation.id)} signed successfully`
       );
     } else {
-      console.error(
-        `Failed to sign automation ${chalk.yellow(automation.id)}`
-      );
+      console.error(`Failed to sign automation ${chalk.yellow(automation.id)}`);
+      return;
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
+
+    const automationLogs = await automationClient.getAutomationLogs(
+      automation.id
+    );
+    console.log("Automation Logs:", automationLogs);
+
+    const isValid = await publicClient.verifyMessage({
+      address: safeAccountClient.account.address,
+      message: { raw: formattedHash },
+      signature: formattedSignature,
+    });
+
+    console.log("Signature valid:", isValid);
+
+    // const receipt = await safeAccountClient.sendTransaction(scheduleTransferAction);
   });
 
 program.parse();
+
+// program.command("test").action(async () => {
+//   const hash =
+//     "0xa75b852e9c1f396cb5b60f55f9183c14a81eb077b9d80b8cea0e7f1a0a4cf7e1";
+//   const safeAccountClient = await getSafeAccountClient();
+//   const safeAccount = getAccount({
+//     address: safeAccountClient.account.address,
+//     type: "safe",
+//   });
+//   const formattedHash = encode1271Hash({
+//     account: safeAccount,
+//     validator: OWNABLE_VALIDATOR_ADDRESS,
+//     chainId: sepolia.id,
+//     hash: hash,
+//   });
+//   const signature = await ownerAccount.signMessage({
+//     message: { raw: formattedHash },
+//   });
+//   const formattedSignature = encode1271Signature({
+//     account: safeAccount,
+//     validator: OWNABLE_VALIDATOR_ADDRESS,
+//     signature,
+//   });
+//   console.log(
+//     `Signed hash: ${chalk.blue(hash)} as ERC1271 hash: ${chalk.green(formattedHash)}`
+//   );
+//   console.log(
+//     `Owner signature: ${chalk.blue(signature)} formatted as: ${chalk.green(formattedSignature)}`
+//   );
+
+//   const isValid = await publicClient.verifyMessage({
+//     address: safeAccountClient.account.address,
+//     message: { raw: formattedHash },
+//     signature: formattedSignature,
+//   });
+
+//   console.log(isValid);
+// });

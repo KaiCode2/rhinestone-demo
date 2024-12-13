@@ -1,38 +1,24 @@
 import {
   RHINESTONE_ATTESTER_ADDRESS,
   MOCK_ATTESTER_ADDRESS,
-  getScheduledTransferData,
-  getScheduledTransfersExecutor,
-  getExecuteScheduledTransferAction,
   OWNABLE_VALIDATOR_ADDRESS,
   getOwnableValidator,
-  encode1271Signature,
-  getAccount,
-  encode1271Hash,
 } from "@rhinestone/module-sdk";
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount } from "viem/accounts";
 import {
-    Account,
   Address,
-  Chain,
-  Client,
   createPublicClient,
-  encodeFunctionData,
   Hex,
   http,
-  parseAbi,
   PrivateKeyAccount,
-  RpcSchema,
-  Transport,
 } from "viem";
 import { sepolia } from "viem/chains";
-import { createSmartAccountClient, SmartAccountClient } from "permissionless";
-import { Erc7579Actions, erc7579Actions } from "permissionless/actions/erc7579";
+import { createSmartAccountClient } from "permissionless";
+import { erc7579Actions } from "permissionless/actions/erc7579";
 import { createPimlicoClient } from "permissionless/clients/pimlico";
 import {
   createPaymasterClient,
   entryPoint07Address,
-  SmartAccount,
 } from "viem/account-abstraction";
 import { toSafeSmartAccount } from "permissionless/accounts";
 import { createAutomationClient } from "@rhinestone/automations-sdk";

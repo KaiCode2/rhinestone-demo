@@ -1,18 +1,26 @@
-// Utility function to split by commas that are not inside quotes
+// Utility function to split the input line by commas that are not inside quotes or parentheses
 export function splitByCommaOutsideQuotes(input: string): string[] {
   const result: string[] = [];
-  let current = "";
+  let current = '';
   let inQuotes = false;
+  let parenDepth = 0;
 
   for (let i = 0; i < input.length; i++) {
     const char = input[i];
+
     if (char === '"') {
       inQuotes = !inQuotes;
       current += char;
-    } else if (char === "," && !inQuotes) {
+    } else if (!inQuotes && char === '(') {
+      parenDepth++;
+      current += char;
+    } else if (!inQuotes && char === ')') {
+      parenDepth--;
+      current += char;
+    } else if (char === ',' && !inQuotes && parenDepth === 0) {
       // Split point
       result.push(current.trim());
-      current = "";
+      current = '';
     } else {
       current += char;
     }

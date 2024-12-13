@@ -81,7 +81,7 @@ async function main() {
   console.log("Active Automations:", activeAutomations);
 
   const executeScheduledTranferAction = getExecuteScheduledTransferAction({
-    jobId: activeAutomations.length, // since this is our first automation on the module
+    jobId: 3 //activeAutomations.length, // since this is our first automation on the module
   });
 
   const actions = [
@@ -94,7 +94,7 @@ async function main() {
   ];
 
   const triggerData = {
-    cronExpression: "*/60 * * * *",
+    cronExpression: "*/5 * * * *",
     startDate: startDate,
   };
 
